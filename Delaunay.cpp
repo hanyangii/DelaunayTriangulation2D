@@ -6,27 +6,12 @@
 #include <vector>
 #include <iostream>
 #include <list>
+#include <algorithm>
+
+#include "Delaunay.h"
 
 using namespace std;
 
-struct Point{
-	float x=0.0;
-	float y=0.0;
-};
-
-struct Edge{
-	// start.x < end.x
-	Point start;
-	Point end;
-};
-
-struct Triangle{
-	//clockwise from a point with the least x value
-	Point points[3];
-	list<Edge> EdgeList;	
-};
-
-list<Triangle> TriangleList;
 
 list<Triangle> MergeTriangles(list<Triangle> LList, list<Triangle> RList){
 	list<Triangle> merged_list;
@@ -34,7 +19,51 @@ list<Triangle> MergeTriangles(list<Triangle> LList, list<Triangle> RList){
 	return merged_list;
 }
 
+list<Triangle> MergeSets(list<Point> PointList){
+	
+	if(PointList.size() > 6){ // divide Points to two subsets
+
+	}
+	else{ // Make LR edge for Delaunay Triangle
+		Point[3] Lset;
+		Point[3] Rset;
+		for(int i=0; i<3;i++){
+			Lset[0] = PointList.pop_front();
+		}
+		Traingle LTriangle = MakeTriangle(Lset[0],Lset[1],Lset[2]);
+		int i=0;
+		while(!PointList.empty()){
+			Rset[i++]=PointList.pop_front();
+		}
+
+
+		Triangle RTriangle;
+		if(i>2){//Rset has three points -> make triangle
+			RTriangle = MakeTriangle(Rset[0],Rset[1],Rset[2]);
+			Rminy = MinYpoint(RTriangle);
+			Lminy = MinYpoint(LTriangle);
+			Edge base_LR = linkEdge(Rminy, Lminy);
+			
+			//Select potential LR
+			Edge potential_LR = PotentialLR(base_LR, RTriangle.
+		}
+		else{
+
+
+		}
+
+	}// endif
+}
+
 list<Triangle> Delaunay(list<Point> PointList){
+	PointList = PointList.sort(compare_y());
+	PointList = PointList.sort(compare_x());
+	int idx=0;
+	for(int i =PointList.begin(); i!= PointList.end(); ++i){
+			i->num = idx++;
+	}
+
+	return MergeSets(PointList);
 }
 
 
