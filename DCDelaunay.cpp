@@ -1,15 +1,81 @@
-#include "Delaunay.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <vector>
+#include <iostream>
+#include <list>
+#include <algorithm>
+#include <time.h>
+#include <cmath>
+#include <assert.h>
 
 #define INF 100000000000000
+#define PI 3.14159265
+
+using namespace std;
 
 ofstream coutFile;
-vector<int>* adj;
-vector<Point> FullPointList;
-int cnt=0;
-clock_t start, finish;
-	
+bool display = false;
 
-void AddEdge(int n1, int n2){
+class Point
+{
+	public:
+		double x;
+		double y;
+		double angle;// angle between this point and min y point 
+		int idx;
+
+		bool operator==(const Point &rhs) const{
+			return x==rhs.x && y==rhs.y;
+		}
+};
+
+typedef vector<const Point*> PointList;
+
+class Edge{
+	// start point is located at left of end point in every edge
+	public:
+		const Point* start;
+		const Point* end;
+		
+		Edge() : start(NULL), end(NULL) {}
+		Edge(const Point* s, const Point* e) : start(s), end(e) {}
+		void set(const Point* s, const Point* e) { start = s, end = e; }
+
+};
+
+bool operator==(const Edge &rhs, const Edge&lhs){
+	return rhs.start == lhs.start && rhs.end == lhs.end;
+}
+
+class Mesh{
+	public:
+		vector<const Point*> PointList;
+
+		size_t point_num(){
+			return PointList.size();
+		}
+
+		void InputList(vector<const Point*> _PointList){
+			for(vector<const Point*>:: iterator it =_PointList.begin();it!=_PointList.end();it++){
+				const Point* ppointer  = *it;
+				PointList.push_back(ppointer);
+			}
+		}	
+};
+
+bool compare_x(const Point& a, const Point& b){
+    return a.x < b.x;
+}
+
+
+bool compare_point_y(const Point* a, const Point* b){
+    return a->y < b->y;
+}
+
+void AddEdge(int n1, int n2, vector<int>* adj){
 	assert(n1>=0&&n2>=0);
 	if(display){
 		coutFile << "add edge : " << n1 << " " << n2 <<"\n" << endl;
@@ -18,7 +84,7 @@ void AddEdge(int n1, int n2){
 	adj[n2].push_back(n1);
 }
 
-void DeleteEdge(int n1, int n2){
+void DeleteEdge(int n1, int n2, vector<int>* adj){
 	if(true) coutFile <<"\n****** Delete : "<<n1<<" "<<n2<<"******\n"<<endl;
 	for(int i = 0; i<adj[n1].size();i++){
 		if(adj[n1].at(i)==n2){
@@ -35,21 +101,21 @@ void DeleteEdge(int n1, int n2){
 	}
 }
 
-double det(Point* central, Point* start, Point* end){
+double det(const Point* central, const Point* start, const Point* end){
 	double start_x = start->x - central->x, start_y = start->y - central->y;
 	double end_x = end->x - central->x, end_y = end->y - central->y;
 
 	return ((start_x * end_y) - (start_y*end_x));
 }
 
-double dot(Point* central, Point* start, Point* end){
+double dot(const Point* central, const Point* start, const Point* end){
 	double start_x = start->x - central->x, start_y = start->y - central->y;
 	double end_x = end->x - central->x, end_y = end->y - central->y;
 
 	return ((start_x * end_x) + (start_y*end_y));
 }
 
-double tan(Point* central, Point* start, Point* end){
+double tan(const Point* central, const Point* start, const Point* end){
 	double start_x = start->x - central->x, start_y = start->y - central->y;
 	double end_x = end->x - central->x, end_y = end->y - central->y;
 	double dott= ((start_x * end_x) + (start_y*end_y));
@@ -59,42 +125,47 @@ double tan(Point* central, Point* start, Point* end){
 }
 
 //Find baseLR from two sets
-Edge initialBaseLR(Mesh Lmesh, Mesh Rmesh){
-	vector<Point*> Lpoints(Lmesh.PointList.begin(), Lmesh.PointList.end());
-	vector<Point*> Rpoints(Rmesh.PointList.begin(), Rmesh.PointList.end());
-
-	if(Lpoints[0]->num==9 && Rpoints[0]->num==17){
-		cout<<"now!!"<<endl;
-	}
-
+Edge FindInitialBaseLR(const PointList& left, const PointList& right){
+	vector<const Point*> Lpoints(left.begin(), left.end());
+	vector<const Point*> Rpoints(right.begin(), right.end());
+	
 	sort(Lpoints.begin(), Lpoints.end(), compare_point_y);
 	sort(Rpoints.begin(), Rpoints.end(), compare_point_y);
 
-	Point* Lmin = Lpoints.front();
-	Point* Rmin = Rpoints.front();
+	const Point* Lmin = Lpoints.front();
+	const Point* Rmin = Rpoints.front();
 
-	//if(Lmin->y < Rmin->y){
-		for(int i =1;i<Rpoints.size();i++){
+	for(int i =1;i<Rpoints.size();i++){
 			if(det(Lmin, Rmin, Rpoints[i])<0) Rmin=Rpoints[i];
 			if(Rpoints[i]->y>Rmin->y && Rpoints[i]->y > Lmin->y ) break;
-		}
-	//}
-	//else{
-		for(int i=1;i<Lpoints.size();i++){
+	}
+	for(int i=1;i<Lpoints.size();i++){
 			if(det(Rmin, Lmin, Lpoints[i])>0) Lmin=Lpoints[i];
 			if(Lpoints[i]->y>Rmin->y && Lpoints[i]->y > Lmin->y ) break;
-		}
-	//}
+	}
 
-	Edge baseLR;
-	baseLR.AddPoint(Lmin, Rmin);
-	return baseLR;
+	return Edge(Lmin, Rmin);
 
 }
 
-vector<Point*> SortCandidates(vector<Point*> OriginalList, Edge baseLR, bool isLMesh){
-	Point* Lpoint = baseLR.start, *Rpoint = baseLR.end;
-	vector<Point*> newList;
+
+void SortCandidates(const PointList pts, vector<const Point*>* newList, Edge baseLR,bool is_left_mesh){
+	const Point* Lpoint = baseLR.start, *Rpoint = baseLR.end;
+	vector<pair<double, const Point*> > data;
+	///////////////////////HERE///////////////////
+	if (is_left_mesh) {
+		for (int i = 0; i < pts.size(); i++) {
+			const Point* p = pts[i];
+			if (det(Lpoint, Rpoint, p)>0) data.push_back(make_pair(tan(Lpoint, Rpoint, p), p));
+		}
+	} 
+	else {  // !is_left_mesh
+		for (int i = 0; i < pts.size(); i++) {
+			const Point* p = pts[i];
+			if (det(Rpoint, p, Lpoint)>0) data.push_back(make_pair(tan(Rpoint, Lpoint, p), p));
+		}
+	}
+	/*
 	for(int i=0;i<OriginalList.size();i++){
 		if(isLMesh&&det(Lpoint, Rpoint, OriginalList[i])>0){
 			OriginalList[i]->angle=tan(Lpoint, Rpoint, OriginalList[i]);
@@ -105,44 +176,46 @@ vector<Point*> SortCandidates(vector<Point*> OriginalList, Edge baseLR, bool isL
 			newList.push_back(OriginalList[i]);
 		}
 	}
-
-	sort(newList.begin(), newList.end(), compare_angle);
+	*/
+	sort(data.begin(), data.end());
+	newList->resize(data.size());
+	for(int i = 0;i<data.size();++i) newList ->at(i) = data[i].second;
 	if(display){
-		for(int i=0;i<newList.size();i++){
-			coutFile<<newList[i]->num<<" : "<<newList[i]->x<<" "<<newList[i]->y<<" tan : "<<newList[i]->angle<<endl;
+		for(int i=0;i<newList->size();i++){
+			coutFile<<newList->at(i)->idx<<" : "<<newList->at(i)->x<<" "<<newList->at(i)->y<<" tan : "<<newList->at(i)->angle<<endl;
 		}
 		coutFile<<"\n"<<endl;
 	}
-	return newList;
+
 }
 
 //if circumcircle of present point and baseLR points contain next point, return ture
-bool isContain(Edge baseLR, Point* now, Point* next){
-	Point *c1=baseLR.start, *c2=baseLR.end, *c3=now;
-	double dA = c1->x * c1->x + c1->y * c1->y;
-    double dB = c2->x * c2->x + c2->y * c2->y;
-    double dC = c3->x * c3->x + c3->y * c3->y;
+bool isContain(Edge baseLR, const Point* now, const Point* next){
+	const Point *c1=baseLR.start, *c2=baseLR.end, *c3=now;
+	const double dA = c1->x * c1->x + c1->y * c1->y;
+    const double dB = c2->x * c2->x + c2->y * c2->y;
+    const double dC = c3->x * c3->x + c3->y * c3->y;
   
-    double aux1 = (dA*(c3->y - c2->y) + dB*(c1->y - c3->y) + dC*(c2->y - c1->y));
-    double aux2 = -(dA*(c3->x - c2->x) + dB*(c1->x - c3->x) + dC*(c2->x - c1->x));
-    double div = (2*(c1->x*(c3->y - c2->y) + c2->x*(c1->y-c3->y) + c3->x*(c2->y - c1->y)));
+    const double aux1 = (dA*(c3->y - c2->y) + dB*(c1->y - c3->y) + dC*(c2->y - c1->y));
+    const double aux2 = -(dA*(c3->x - c2->x) + dB*(c1->x - c3->x) + dC*(c2->x - c1->x));
+    const double div = (2*(c1->x*(c3->y - c2->y) + c2->x*(c1->y-c3->y) + c3->x*(c2->y - c1->y)));
  
     if(div == 0){ 
         return false;
     }
 
 	//Circumcircle
-	double center_x = aux1/div;
-	double center_y = aux2/div;
-	double double_radius = (center_x - c1->x)*(center_x - c1->x) + (center_y - c1->y)*(center_y - c1->y);
+	const double center_x = aux1/div;
+	const double center_y = aux2/div;
+	const double double_radius = (center_x - c1->x)*(center_x - c1->x) + (center_y - c1->y)*(center_y - c1->y);
 	
 	//if(display) cout<<"CircumCircle : x="<<a[0]<<" y="<<a[1]<<" r="<<a[2]<<endl;
 
-	double x_dist = next->x - center_x;
-	double y_dist = next->y - center_y;
-	double dist = x_dist*x_dist + y_dist*y_dist;
+	const double x_dist = next->x - center_x;
+	const double y_dist = next->y - center_y;
+	const double dist = x_dist*x_dist + y_dist*y_dist;
 
-	if(display) coutFile<<"Tri : "<<c1->num<<" "<<c2->num<<" "<<c3->num<<"  Point : "<<next->num<<" :::: "<<double_radius<<" "<<dist<<endl;
+	if(display) coutFile<<"Tri : "<<c1->idx<<" "<<c2->idx<<" "<<c3->idx<<"  Point : "<<next->idx<<" :::: "<<double_radius<<" "<<dist<<endl;
 	if(double_radius > dist){
 		if(display) coutFile<<"True"<<endl;
 		return true;
@@ -154,28 +227,31 @@ bool isContain(Edge baseLR, Point* now, Point* next){
 }
 
 //Make Next LR edge (reculsively)
-Mesh MakeLRedge(Mesh new_mesh, Mesh Lmesh, Mesh Rmesh, Edge baseLR){
-	if(display) coutFile << "++++++++++++++++++++ newLR : " << baseLR.start->num << " " << baseLR.end->num <<"++++++++++++++++++++++++++++\n" << endl;
+void MakeLRedge(const PointList& left, const PointList& right,
+                const Edge& baseLR,
+                Mesh* mesh, vector<int>* adj){
+	if(display) coutFile << "++++++++++++++++++++ newLR : " << baseLR.start->idx << " " << baseLR.end->idx <<"++++++++++++++++++++++++++++\n" << endl;
 	
 	//Sort points by angle
-	vector<Point*> Lcandidates = SortCandidates(Lmesh.PointList, baseLR , true);
-	vector<Point*> Rcandidates = SortCandidates(Rmesh.PointList, baseLR , false);
+	PointList Lcandidates, Rcandidates;
+	SortCandidates(left, &Lcandidates, baseLR , true);
+	SortCandidates(right, &Rcandidates, baseLR , false);
 	
 	//Select L candidate
 	bool isLcandid = false;
-	Point* Lcandid;
+	const Point* Lcandid;
 	for(int i=0;i<Lcandidates.size();i++){
 		if(i==Lcandidates.size()-1){
 			Lcandid = Lcandidates[i];
 			isLcandid=true;
-			if(display) coutFile<<"Lcandid : "<<Lcandid->num<<endl;
+			if(display) coutFile<<"Lcandid : "<<Lcandid->idx<<endl;
 			break;
 		}
 		else{
 			bool del=false;
 			for(int j=i+1;j<Lcandidates.size();j++){
 				if(isContain(baseLR, Lcandidates[i], Lcandidates[j])){
-					DeleteEdge(baseLR.start->num, Lcandidates[i]->num);
+					DeleteEdge(baseLR.start->idx, Lcandidates[i]->idx, adj);
 					del=true;
 					break;
 				}
@@ -184,7 +260,7 @@ Mesh MakeLRedge(Mesh new_mesh, Mesh Lmesh, Mesh Rmesh, Edge baseLR){
 			if(!del){
 				isLcandid = true;
 				Lcandid = Lcandidates[i];
-				if(display) coutFile<<"Lcandid : "<<Lcandid->num<<endl;
+				if(display) coutFile<<"Lcandid : "<<Lcandid->idx<<endl;
 				break;
 			}
 		}
@@ -192,19 +268,19 @@ Mesh MakeLRedge(Mesh new_mesh, Mesh Lmesh, Mesh Rmesh, Edge baseLR){
 
 	//Select R candidate
 	bool isRcandid = false;
-	Point* Rcandid;
+	const Point* Rcandid;
 	for(int i=0;i<Rcandidates.size();i++){
 		if(i==Rcandidates.size()-1){
 			Rcandid = Rcandidates[i];
 			isRcandid=true;
-			if(display) coutFile<<"Rcandid : "<<Rcandid->num<<endl;
+			if(display) coutFile<<"Rcandid : "<<Rcandid->idx<<endl;
 			break;
 		}
 		else{
 			bool del=false;
 			for(int j=i+1;j<Rcandidates.size();j++){
 				if(isContain(baseLR, Rcandidates[i], Rcandidates[j])){
-					DeleteEdge(baseLR.end->num, Rcandidates[i]->num);
+					DeleteEdge(baseLR.end->idx, Rcandidates[i]->idx, adj);
 					del=true;
 					break;
 				}
@@ -213,7 +289,7 @@ Mesh MakeLRedge(Mesh new_mesh, Mesh Lmesh, Mesh Rmesh, Edge baseLR){
 			if(!del){
 				isRcandid = true;
 				Rcandid = Rcandidates[i];
-				if(display) coutFile<<"Rcandid : "<<Rcandid->num<<endl;
+				if(display) coutFile<<"Rcandid : "<<Rcandid->idx<<endl;
 				break;
 			}
 		}
@@ -229,160 +305,129 @@ Mesh MakeLRedge(Mesh new_mesh, Mesh Lmesh, Mesh Rmesh, Edge baseLR){
 
 		assert(isRcontainL || isLcontainR == true);
 		if(isRcontainL){
-			newLR.AddPoint(Lcandid,baseLR.end);
-			AddEdge(newLR.start->num, newLR.end->num);
+			newLR.set(Lcandid,baseLR.end);
+			AddEdge(newLR.start->idx, newLR.end->idx, adj);
 			
 		}
 		else{
-			newLR.AddPoint(baseLR.start, Rcandid);
-			AddEdge(newLR.start->num, newLR.end->num);
+			newLR.set(baseLR.start, Rcandid);
+			AddEdge(newLR.start->idx, newLR.end->idx, adj);
 		}
 	}
 	else if(isLcandid){
-		newLR.AddPoint(Lcandid,baseLR.end);
-		AddEdge(newLR.start->num, newLR.end->num);
+		newLR.set(Lcandid,baseLR.end);
+		AddEdge(newLR.start->idx, newLR.end->idx, adj);
 	}
 	else if(isRcandid){
-		newLR.AddPoint(baseLR.start, Rcandid);
-		AddEdge(newLR.start->num, newLR.end->num);
+		newLR.set(baseLR.start, Rcandid);
+		AddEdge(newLR.start->idx, newLR.end->idx, adj);
 	}
 	else{
 		//No candidates
-		return new_mesh;
+		return ;
 	}
 
-	return MakeLRedge(new_mesh, Lmesh, Rmesh, newLR);
+	 MakeLRedge(left, right, newLR, mesh, adj);
 }
 
 //Divide and Conquer
-Mesh MergeSets(Mesh Lmesh, Mesh Rmesh){
+void MergeSets(PointList left, PointList right,
+               Mesh* mesh, vector<int>* adj){
 	if(display){
 			coutFile << "Lset : " <<endl;
-			for(vector<Point*>::iterator i =Lmesh.PointList.begin(); i!=Lmesh.PointList.end();i++){
-				coutFile << (*i)->num << " " << endl;
+			for(PointList::iterator i =left.begin(); i!=left.end();i++){
+				coutFile << (*i)->idx << " " << endl;
 			}
 			coutFile << "Rset : " <<endl;
-			for(vector<Point*>::iterator i =Rmesh.PointList.begin(); i!=Rmesh.PointList.end();i++){
-				coutFile << (*i)->num << " " << endl;
+			for(PointList::iterator i =right.begin(); i!=right.end();i++){
+				coutFile << (*i)->idx << " " << endl;
 			}
 			coutFile << "\n"<<endl;
 		}
 
 
 	// Divide each mesh to subsets OR Make Edge and triangle
-	if(Lmesh.point_num()>3){
-		size_t list_size;
-		if(Lmesh.point_num()%2 == 1) list_size = Lmesh.point_num()/2+1;
-		else list_size = Lmesh.point_num()/2;
-		
-		size_t const half_size = list_size;
-
-		vector <Point*> new_LList(Lmesh.PointList.begin(), Lmesh.PointList.begin()+half_size);
-		vector <Point*> new_RList(Lmesh.PointList.begin()+half_size, Lmesh.PointList.end());
-		Mesh new_Lmesh(new_LList);
-		Mesh new_Rmesh(new_RList);
-		Lmesh = MergeSets(new_Lmesh, new_Rmesh);
+	if(left.size()>3){
+		const size_t half_size = ceil(left.size() / 2.0);
+		PointList new_LList(left.begin(), left.begin()+half_size);
+		PointList new_RList(left.begin()+half_size, left.end());
+		MergeSets(new_LList, new_RList, mesh, adj);
 	}
 	else{
 		//if number of points <= 3
-		for(vector<Point*>::iterator i=Lmesh.PointList.begin(); i!=Lmesh.PointList.end(); i++){
-			for(vector<Point*>::iterator j = i+1; j!= Lmesh.PointList.end();j++){
-				AddEdge((*i)->num, (*j)->num);
+		for (int i = 0; i < left.size(); ++i) {
+			for (int j = i + 1; j < left.size(); ++j) {
+				AddEdge(left[i]->idx, left[j]->idx, adj);
 			}
 		}
 	}
 
-	if(Rmesh.point_num()>3){
-		size_t list_size;
-		if(Rmesh.point_num()%2 == 1) list_size = Rmesh.point_num()/2+1;
-		else list_size = Rmesh.point_num()/2;
-		
-		size_t const half_size = list_size;
-		vector <Point*> new_LList(Rmesh.PointList.begin(), Rmesh.PointList.begin()+half_size);
-		vector <Point*> new_RList(Rmesh.PointList.begin()+half_size, Rmesh.PointList.end());
-		Mesh new_Lmesh(new_LList);
-		Mesh new_Rmesh(new_RList);
-		Rmesh = MergeSets(new_Lmesh, new_Rmesh);
+	if(right.size()>3){
+		const size_t half_size = ceil(right.size() / 2.0);
+		PointList new_LList(right.begin(), right.begin()+half_size);
+		PointList new_RList(right.begin()+half_size, right.end());
+		MergeSets(new_LList, new_RList, mesh, adj);
 	}
 	else{
-		//if number of points <=3
-		for(vector<Point*>::iterator i=Rmesh.PointList.begin(); i!=Rmesh.PointList.end(); i++){
-			for(vector<Point*>::iterator j = i+1; j!= Rmesh.PointList.end();j++){
-				AddEdge((*i)->num, (*j)->num);
+		//if number of points <= 3
+		for (int i = 0; i < right.size(); ++i) {
+			for (int j = i + 1; j < right.size(); ++j) {
+				AddEdge(right[i]->idx, right[j]->idx, adj);
 			}
 		}
 	}
 
 	//Conquer two sets
-	vector <Point*> new_PointList(Lmesh.PointList.begin(), Lmesh.PointList.end());
+	/*ector <Point*> new_PointList(LL.begin(), Lmesh.PointList.end());
 	new_PointList.insert(new_PointList.end(), Rmesh.PointList.begin(), Rmesh.PointList.end());
 	Mesh new_mesh(new_PointList);
+	*/
 
 	//Select the lowest line for baseLR
-	Edge baseLR = initialBaseLR(Lmesh, Rmesh);
-	AddEdge(baseLR.start->num, baseLR.end->num);
+	Edge baseLR = FindInitialBaseLR(left, right);
+	AddEdge(baseLR.start->idx, baseLR.end->idx, adj);
 
 	//Link LR edges
-	cnt =0;
-	new_mesh = MakeLRedge(new_mesh, Lmesh, Rmesh, baseLR);
+	MakeLRedge(left, right, baseLR, mesh, adj);
 	
 	if(display) coutFile << "\n===============================================Two sets merged====================================\n" << endl;
-	return new_mesh;
 }
 
 
 
-Mesh Delaunay(){
-	
-	ofstream newFile;
-	newFile.open("newPoints.txt");
-	
-	//Sort points from left to right & give indicies
-	int num=0;
-	for(vector<Point>::iterator i=FullPointList.begin();i!=FullPointList.end();i++){
-		newFile<< i->x << "\t" << i->y << endl;
-		i->addNum(num++);	
-	}
-	newFile.close();
-	
+void Delaunay(const vector<Point>& pts, Mesh* mesh, vector<int>* adj){
+		
 	bool erase = false ;
-	assert(FullPointList.size()>=2);
+	assert(pts.size()>=2);
 
 	//Devide Points to two sets and merge
-	start=clock();
-	if(FullPointList.size()>3){
-		if(display) cout << "number of points : " << FullPointList.size()<<"\n"<<endl;
-		int list_size =0;
-		if(FullPointList.size()%2 == 1) list_size = FullPointList.size()/2+1;
-		else list_size = FullPointList.size()/2;
-		
-		size_t const half_size = list_size;
-		vector<Point*> LList;
-		vector<Point*> RList;
-		for(int i = 0;i<half_size;i++) LList.push_back(&FullPointList[i]);
-		for(int i=half_size;i<FullPointList.size();i++) RList.push_back(&FullPointList[i]);
-
-		Mesh LMesh(LList);
-		Mesh RMesh(RList);
-		return MergeSets(LMesh, RMesh);
+	
+	if(pts.size()>3){
+		if(display) cout << "number of points : " << pts.size()<<"\n"<<endl;
+		size_t const half_size = ceil(pts.size() / 2.0);
+		vector<const Point*> LList;
+		vector<const Point*> RList;
+		for(int i = 0;i<half_size;i++) LList.push_back(&pts[i]);
+		for(int i=half_size;i<pts.size();i++) RList.push_back(&pts[i]);
+		MergeSets(LList, RList, mesh, adj);
 	}
-	else if(FullPointList.size()==3){
-		vector<Point*> Plist;
-		for(int i=0;i<FullPointList.size();i++) Plist.push_back(&FullPointList[i]);
-		Mesh mesh(Plist);
-		//vector<Point>::iterator it = FullPointList.begin();
+	else if(pts.size()==3){
+		vector<const Point*> Plist;
+		for(int i=0;i<pts.size();i++) Plist.push_back(&pts[i]);
+		Mesh mesh;
+		mesh.InputList(Plist);
+		//vector<Point>::iterator it = pts.begin();
 		for(int i=0;i<3;i++){
-			AddEdge(FullPointList[i].num, FullPointList[(i+1)%3].num);
+			AddEdge(pts[i].idx, pts[(i+1)%3].idx, adj);
 			
 		}
-		return mesh;
 	}
 	else{
-		vector<Point*> Plist;
-		for(int i=0;i<FullPointList.size();i++) Plist.push_back(&FullPointList[i]);
-		Mesh mesh(Plist);
-		AddEdge(FullPointList.begin()->num, FullPointList.end()->num);
-		return mesh;
+		vector<const Point*> Plist;
+		for(int i=0;i<pts.size();i++) Plist.push_back(&pts[i]);
+		Mesh mesh;
+		mesh.InputList(Plist);
+		AddEdge(pts.begin()->idx, pts.end()->idx, adj);
 	}
 	
 }
@@ -426,9 +471,10 @@ vector<Point> InputPoints(){
 	last_pt.y = INF;
 	double epsilon = 0.001;
 	
-	//If there are two same points, move one point little bit. 
-	
+	//Sort Points
 	sort(PointList.begin(), PointList.end(), compare_x);
+	
+	//If there are two same points, move one point little bit. 
 	for(int i=0;i<PointList.size();i++){
 		Point current  = PointList[i];
 		if(last_pt.x == current.x || last_pt.y==current.y){
@@ -447,15 +493,28 @@ int main(){
 	//InputPoints	
 	coutFile.open("Cout.txt");
 	srand((unsigned int)time(NULL));
-	FullPointList=InputPoints();
+	vector<Point> pts;
+	pts=InputPoints();
 
 	//Make Matrix for Edges
-	int point_num = FullPointList.size();
+	int point_num = pts.size();
+	vector<int>* adj;
 	adj = new vector<int> [ point_num ];
 
-	
+	//give indicies
+	ofstream newFile;
+	newFile.open("newPoints.txt");
+	for(int i = 0; i<pts.size(); i++){
+		newFile << pts[i].x << "\t" << pts[i].y << endl;
+		pts[i].idx = i;
+	}
+	newFile.close();
+
 	//Link Edges 
-	Mesh result_mesh = Delaunay();
+	clock_t start, finish;
+	Mesh result_mesh;
+	start=clock();
+	Delaunay(pts, &result_mesh, adj);
 	finish=clock();
 
 	double duration = (double)(finish - start)/CLOCKS_PER_SEC;
