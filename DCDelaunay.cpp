@@ -33,35 +33,95 @@ class Point
 };
 
 typedef vector<const Point*> PointList;
+typedef vector<const Point*> Triangle;
 
 class Edge{
 	// start point is located at left of end point in every edge
 	public:
 		const Point* start;
 		const Point* end;
+		vector<const Triangle> triangle;
 		
-		Edge() : start(NULL), end(NULL) {}
+		Edge() : start(NULL), end(NULL) , triangle(NULL){}
 		Edge(const Point* s, const Point* e) : start(s), end(e) {}
 		void set(const Point* s, const Point* e) { start = s, end = e; }
-
+		void setTri(const Point* s, const Point* e, const Triangle t) { start = s, end = e; triangle.push_back(t);}
 };
 
 bool operator==(const Edge &rhs, const Edge&lhs){
-	return rhs.start == lhs.start && rhs.end == lhs.end;
+	
+	bool istrue= (rhs.start->idx == lhs.start->idx && rhs.end->idx == lhs.end->idx) 
+				 || (rhs.end->idx == lhs.start->idx && rhs.start->idx == lhs.end->idx) ;
+	return istrue;
+}
+bool operator==(const Triangle &rhs, const Triangle &lhs){
+	bool istrue = ((rhs[0]->idx == lhs[0]->idx &&rhs[1]->idx == lhs[1]->idx &&rhs[2]->idx == lhs[2]->idx) ||
+				  (rhs[0]->idx == lhs[0]->idx &&rhs[2]->idx == lhs[1]->idx &&rhs[1]->idx == lhs[2]->idx) ||
+				  (rhs[1]->idx == lhs[0]->idx &&rhs[0]->idx == lhs[1]->idx &&rhs[2]->idx == lhs[2]->idx) ||
+				  (rhs[1]->idx == lhs[0]->idx &&rhs[2]->idx == lhs[1]->idx &&rhs[0]->idx == lhs[2]->idx) ||
+				  (rhs[2]->idx == lhs[0]->idx &&rhs[1]->idx == lhs[1]->idx &&rhs[0]->idx == lhs[2]->idx) ||
+				  (rhs[2]->idx == lhs[0]->idx &&rhs[0]->idx == lhs[1]->idx &&rhs[1]->idx == lhs[2]->idx));
+	return istrue;
 }
 
 class Mesh{
 	public:
-		vector<const Point*> PointList;
+		PointList PList;
+		vector<const Triangle> TriList;
+		vector<const Edge> EdgeList;
 
 		size_t point_num(){
-			return PointList.size();
+			return PList.size();
+		}
+
+		void InputTriangle(const Point* p1, const Point* p2, const Point* p3){
+			Triangle tri;
+			tri.push_back(p1);
+			tri.push_back(p2);
+			tri.push_back(p3);
+			Edge e1, e2, e3; 
+			e1.setTri(p1,p2, tri); e2.setTri(p2,p3, tri); e3.setTri(p3,p1, tri);
+			if(display) coutFile<<"Input Tri"<<p1->idx<<" "<<p2->idx<<" "<<p3->idx<<endl;
+			auto it1 = find(EdgeList.begin(), EdgeList.end(), e1);
+			if(it1 != EdgeList.end()) it1->triangle.push_back(tri);
+			else EdgeList.push_back(e1);
+			
+			auto it2 = find(EdgeList.begin(), EdgeList.end(), e2);
+			if(it2 != EdgeList.end()) it2->triangle.push_back(tri);
+			else EdgeList.push_back(e2);
+
+			auto it3 = find(EdgeList.begin(), EdgeList.end(), e3);
+			if(it3 != EdgeList.end()) it3->triangle.push_back(tri);
+			else EdgeList.push_back(e3);
+			
+			TriList.push_back(tri);
+		}
+		
+
+		void RemoveTriangle(const Point* p1, const Point* p2){
+			Edge e;
+			e.set(p1,p2);
+			vector<const Edge>::iterator n_e=find(EdgeList.begin(),EdgeList.end(), e);
+			if(n_e == EdgeList.end()) return;
+			vector<const Triangle> tri_list = n_e->triangle;
+			if(tri_list.size()>0){
+				for(int i = 0;i<tri_list.size();i++){
+					const Triangle t = tri_list[i];
+					if(display) coutFile<<"Find Tri"<<t[0]->idx<<" "<<t[1]->idx<<" "<<t[2]->idx<<endl;
+					auto it = find(TriList.begin(), TriList.end(), t);
+					if (it != TriList.end()) {
+						TriList.erase(it); 
+						if(display) coutFile<<"Remove Tri"<<t[0]->idx<<" "<<t[1]->idx<<" "<<t[2]->idx<<endl;
+					}
+				}
+			}
+			
 		}
 
 		void InputList(vector<const Point*> _PointList){
 			for(vector<const Point*>:: iterator it =_PointList.begin();it!=_PointList.end();it++){
 				const Point* ppointer  = *it;
-				PointList.push_back(ppointer);
+				PList.push_back(ppointer);
 			}
 		}	
 };
@@ -102,26 +162,25 @@ void DeleteEdge(int n1, int n2, vector<int>* adj){
 }
 
 double det(const Point* central, const Point* start, const Point* end){
-	double start_x = start->x - central->x, start_y = start->y - central->y;
-	double end_x = end->x - central->x, end_y = end->y - central->y;
+	const double start_x = start->x - central->x, start_y = start->y - central->y;
+	const double end_x = end->x - central->x, end_y = end->y - central->y;
 
 	return ((start_x * end_y) - (start_y*end_x));
 }
 
 double dot(const Point* central, const Point* start, const Point* end){
-	double start_x = start->x - central->x, start_y = start->y - central->y;
-	double end_x = end->x - central->x, end_y = end->y - central->y;
+	const double start_x = start->x - central->x, start_y = start->y - central->y;
+	const double end_x = end->x - central->x, end_y = end->y - central->y;
 
 	return ((start_x * end_x) + (start_y*end_y));
 }
 
 double tan(const Point* central, const Point* start, const Point* end){
-	double start_x = start->x - central->x, start_y = start->y - central->y;
-	double end_x = end->x - central->x, end_y = end->y - central->y;
-	double dott= ((start_x * end_x) + (start_y*end_y));
-	double dist = sqrt((start_x*start_x+start_y*start_y)*(end_x*end_x+end_y*end_y));
+	const double start_x = start->x - central->x, start_y = start->y - central->y;
+	const double end_x = end->x - central->x, end_y = end->y - central->y;
+	const double dott= ((start_x * end_x) + (start_y*end_y));
+	const double dist = sqrt((start_x*start_x+start_y*start_y)*(end_x*end_x+end_y*end_y));
 	return -dott/dist;
-	//return det(central, start, end)/dot(central, start, end);
 }
 
 //Find baseLR from two sets
@@ -152,7 +211,7 @@ Edge FindInitialBaseLR(const PointList& left, const PointList& right){
 void SortCandidates(const PointList pts, vector<const Point*>* newList, Edge baseLR,bool is_left_mesh){
 	const Point* Lpoint = baseLR.start, *Rpoint = baseLR.end;
 	vector<pair<double, const Point*> > data;
-	///////////////////////HERE///////////////////
+
 	if (is_left_mesh) {
 		for (int i = 0; i < pts.size(); i++) {
 			const Point* p = pts[i];
@@ -165,18 +224,7 @@ void SortCandidates(const PointList pts, vector<const Point*>* newList, Edge bas
 			if (det(Rpoint, p, Lpoint)>0) data.push_back(make_pair(tan(Rpoint, Lpoint, p), p));
 		}
 	}
-	/*
-	for(int i=0;i<OriginalList.size();i++){
-		if(isLMesh&&det(Lpoint, Rpoint, OriginalList[i])>0){
-			OriginalList[i]->angle=tan(Lpoint, Rpoint, OriginalList[i]);
-			newList.push_back(OriginalList[i]);
-		}
-		else if(!isLMesh&&det(Rpoint, OriginalList[i],Lpoint)>0){
-			OriginalList[i]->angle=tan(Rpoint, Lpoint, OriginalList[i]);
-			newList.push_back(OriginalList[i]);
-		}
-	}
-	*/
+	
 	sort(data.begin(), data.end());
 	newList->resize(data.size());
 	for(int i = 0;i<data.size();++i) newList ->at(i) = data[i].second;
@@ -252,6 +300,7 @@ void MakeLRedge(const PointList& left, const PointList& right,
 			for(int j=i+1;j<Lcandidates.size();j++){
 				if(isContain(baseLR, Lcandidates[i], Lcandidates[j])){
 					DeleteEdge(baseLR.start->idx, Lcandidates[i]->idx, adj);
+					mesh->RemoveTriangle(baseLR.start, Lcandidates[i]);
 					del=true;
 					break;
 				}
@@ -281,6 +330,7 @@ void MakeLRedge(const PointList& left, const PointList& right,
 			for(int j=i+1;j<Rcandidates.size();j++){
 				if(isContain(baseLR, Rcandidates[i], Rcandidates[j])){
 					DeleteEdge(baseLR.end->idx, Rcandidates[i]->idx, adj);
+					mesh->RemoveTriangle(baseLR.end, Rcandidates[i]);
 					del=true;
 					break;
 				}
@@ -305,20 +355,24 @@ void MakeLRedge(const PointList& left, const PointList& right,
 
 		assert(isRcontainL || isLcontainR == true);
 		if(isRcontainL){
+			mesh->InputTriangle(baseLR.start, baseLR.end, Lcandid);
 			newLR.set(Lcandid,baseLR.end);
 			AddEdge(newLR.start->idx, newLR.end->idx, adj);
 			
 		}
 		else{
+			mesh->InputTriangle(baseLR.start, baseLR.end,  Rcandid);
 			newLR.set(baseLR.start, Rcandid);
 			AddEdge(newLR.start->idx, newLR.end->idx, adj);
 		}
 	}
 	else if(isLcandid){
+		mesh->InputTriangle(baseLR.start, baseLR.end, Lcandid);
 		newLR.set(Lcandid,baseLR.end);
 		AddEdge(newLR.start->idx, newLR.end->idx, adj);
 	}
 	else if(isRcandid){
+		mesh->InputTriangle(baseLR.start, baseLR.end, Rcandid);
 		newLR.set(baseLR.start, Rcandid);
 		AddEdge(newLR.start->idx, newLR.end->idx, adj);
 	}
@@ -326,8 +380,8 @@ void MakeLRedge(const PointList& left, const PointList& right,
 		//No candidates
 		return ;
 	}
-
-	 MakeLRedge(left, right, newLR, mesh, adj);
+	
+	MakeLRedge(left, right, newLR, mesh, adj);
 }
 
 //Divide and Conquer
@@ -360,6 +414,7 @@ void MergeSets(PointList left, PointList right,
 				AddEdge(left[i]->idx, left[j]->idx, adj);
 			}
 		}
+		if(left.size()==3) mesh->InputTriangle(left[0], left[1], left[2]);
 	}
 
 	if(right.size()>3){
@@ -375,13 +430,8 @@ void MergeSets(PointList left, PointList right,
 				AddEdge(right[i]->idx, right[j]->idx, adj);
 			}
 		}
+		if(right.size()==3) mesh->InputTriangle(right[0], right[1], right[2]);
 	}
-
-	//Conquer two sets
-	/*ector <Point*> new_PointList(LL.begin(), Lmesh.PointList.end());
-	new_PointList.insert(new_PointList.end(), Rmesh.PointList.begin(), Rmesh.PointList.end());
-	Mesh new_mesh(new_PointList);
-	*/
 
 	//Select the lowest line for baseLR
 	Edge baseLR = FindInitialBaseLR(left, right);
@@ -416,7 +466,6 @@ void Delaunay(const vector<Point>& pts, Mesh* mesh, vector<int>* adj){
 		for(int i=0;i<pts.size();i++) Plist.push_back(&pts[i]);
 		Mesh mesh;
 		mesh.InputList(Plist);
-		//vector<Point>::iterator it = pts.begin();
 		for(int i=0;i<3;i++){
 			AddEdge(pts[i].idx, pts[(i+1)%3].idx, adj);
 			
@@ -452,10 +501,10 @@ vector<Point> InputPoints(){
 		while(getline(linestream, word, '\t')){
 			double inputnum = atof((word).c_str());
 			if(idx%2==0){ 
-				new_pt.x= inputnum;//*((double)rand()/(double)RAND_MAX);
+				new_pt.x= inputnum;
 			}
 			else{
-				new_pt.y= inputnum;//*((double)rand()/(double)RAND_MAX);
+				new_pt.y= inputnum;
 			}
 			if(++idx ==2) break;
 		} 
@@ -513,6 +562,7 @@ int main(){
 	//Link Edges 
 	clock_t start, finish;
 	Mesh result_mesh;
+
 	start=clock();
 	Delaunay(pts, &result_mesh, adj);
 	finish=clock();
@@ -520,15 +570,14 @@ int main(){
 	double duration = (double)(finish - start)/CLOCKS_PER_SEC;
 	cout << "Duration : "<<duration<<endl;
 
-	ofstream linkFile;
-	linkFile.open("Link.txt");
-	for(int i=0; i<point_num;i++){
-		for(int j=0; j < adj[i].size();j++){
-			linkFile << i << " " << adj[i].at(j) << endl;
-		}
-	}
 	
-	linkFile.close();
+	ofstream triFile;
+	triFile.open("Triangle.txt");
+	for(int i = 0;i<result_mesh.TriList.size();i++){
+		triFile<<result_mesh.TriList[i][0]->idx<<" "<<result_mesh.TriList[i][1]->idx<<" "<<result_mesh.TriList[i][2]->idx<<" "<<endl;
+	}
+
+	triFile.close();
 	coutFile.close();
 	return 0;
 }
